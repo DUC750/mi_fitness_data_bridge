@@ -69,13 +69,19 @@ def test_indoor_run_truncated_blob_is_rejected():
         parse_sport_record(_indoor_run_v6([(120, 15, 114, 524)])[:-1], 3)
 
 
-def test_free_training_v3_roundtrip():
-    # v3 channels: hr/calories/spo2/stress; spo2 and stress exist without a high value.
-    blob = _header(3, 8, bytes((0xCC, 0x88)))
-    body = struct.pack("<II", 3, REPORT_TIME) + b"\x00"  # IT summary: 41 (v2, 1 B)
+@pytest.mark.parametrize("proto_type", [8, 12, 16])
+@pytest.mark.parametrize("version", [3, 4, 5])
+def test_free_training_supported_versions_roundtrip(proto_type, version):
+    # hr/calories/spo2/stress; spo2 and stress exist without a high value.
+    blob = _header(version, proto_type, bytes((0xCC, 0x88)))
+    body = struct.pack("<II", 3, REPORT_TIME) + b"\x00"  # IT state
+    if version >= 4:
+        body += struct.pack("<I", 123)  # total duration
+    if version >= 5:
+        body += struct.pack("<HHH", 4, 5, 6)  # action times, weight, ID
     for hr in (98, 104, 117):
         body += bytes((hr, 2, 97, 40))
-    segments = parse_sport_record(blob + body, 8)
+    segments = parse_sport_record(blob + body, proto_type)
     assert len(segments) == 1
     _, samples = segments[0]
     assert [s[TYPE_HR] for s in samples] == [98, 104, 117]
@@ -87,3 +93,19 @@ def test_free_training_one_dimension_versions_are_skipped():
     # v1/v2 use a one-dimension layout that is not implemented.
     blob = _header(2, 8, bytes(1)) + struct.pack("<II", 0, REPORT_TIME)
     assert parse_sport_record(blob, 8) == []
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_indoor_run_early_versions_roundtrip(version):
+    # Three channels occupy three nibbles; the final nibble is padding.
+    blob = _header(version, 3, bytes((0xCC, 0xC0)))
+    body = struct.pack("<II", 2, REPORT_TIME)
+    if version == 2:
+        body += b"\x00"  # IT state starts at v2
+    body += bytes((0x31, 120, 15, 0x42, 131, 16))
+    assert parse_sport_record(blob + body, 3) == [
+        (REPORT_TIME, [
+            {TYPE_CALORIES: 3, TYPE_HR: 120, TYPE_DISTANCE: 15},
+            {TYPE_CALORIES: 4, TYPE_HR: 131, TYPE_DISTANCE: 16},
+        ])
+    ]

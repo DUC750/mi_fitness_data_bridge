@@ -269,8 +269,8 @@ STEP_CONFIG = _RecordConfig(
 
 # Indoor running / treadmill (proto 3). Channel table from upstream IndoorRunRecordParser
 # (kevinkwee/Mi-Fitness-Sync, _INDOOR_RUN_CONFIG). No pause-init block. dataValid: v1/v2 = 2 bytes
-# as upstream; v6 = 4 bytes (8 channels up to v6, one nibble each), verified against a real
-# Redmi Watch treadmill blob whose length matched header + 3966 x 12-byte records exactly.
+# as upstream; v6 = 4 bytes (8 channels up to v6, one nibble each). The contributor
+# verified this layout against a Xiaomi Smart Band 8 Pro treadmill record.
 INDOOR_RUN_CONFIG = _RecordConfig(
     proto_types=frozenset({3}),
     it_summary_types=(
